@@ -1,0 +1,26 @@
+{
+  "name": "studioflow-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "StudioFlow AI - Production-ready Monorepo Foundation",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build:packages": "npm run build --workspace=packages/shared && npm run build --workspace=packages/config && npm run build --workspace=packages/agents",
+    "build": "npm run build:packages && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

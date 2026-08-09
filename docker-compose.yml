@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+      - GOOGLE_CLOUD_PROJECT_ID=studioflow-ai-dev
+      - GOOGLE_CLOUD_REGION=us-central1
+      - FIRESTORE_DATABASE_ID=(default)
+      - GOOGLE_CLOUD_STORAGE_BUCKET=studioflow-ai-media-dev
+    volumes:
+      - ./uploads:/app/apps/api/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    depends_on:
+      - api
