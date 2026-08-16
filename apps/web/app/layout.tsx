@@ -1,20 +1,20 @@
 import type { Metadata } from 'next';
+import { StudioFlowProvider } from '@/providers/studioflow-provider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'StudioFlow AI — Video Production Engine',
-  description: 'Production-ready AI video workspace foundation built with Next.js, Express, and Google ADK',
+  title: {
+    default: 'StudioFlow AI',
+    template: '%s · StudioFlow AI',
+  },
+  description: 'Agentic media workflows for creator publishing teams.',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased selection:bg-brand-500 selection:text-white">
-        {children}
+      <body>
+        <StudioFlowProvider>{children}</StudioFlowProvider>
       </body>
     </html>
   );

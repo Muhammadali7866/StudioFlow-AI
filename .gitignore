@@ -32,3 +32,6 @@ temp/
 *.pem
 .vscode/
 .idea/
+
+# Exported design prototype
+studioflow-ai-design/
