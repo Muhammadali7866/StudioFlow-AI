@@ -10,7 +10,7 @@ export interface User {
   avatarUrl?: string;
   createdAt: string;
 }
-
+//
 export interface MediaAsset {
   id: string;
   projectId: string;
