@@ -15,6 +15,10 @@ class MemoryFirestoreStore {
     return this.projects.get(id) || null;
   }
 
+  async getAllProjects(): Promise<Project[]> {
+    return Array.from(this.projects.values());
+  }
+
   async addMediaAsset(asset: MediaAsset): Promise<MediaAsset> {
     this.mediaAssets.set(asset.id, asset);
     const project = this.projects.get(asset.projectId);
@@ -92,6 +96,18 @@ export class FirestoreService {
       }
     }
     return this.memoryStore.getProject(id);
+  }
+
+  public async listProjects(): Promise<Project[]> {
+    if (this.db) {
+      try {
+        const snapshot = await this.db.collection('projects').orderBy('createdAt', 'desc').get();
+        return snapshot.docs.map((doc) => doc.data() as Project);
+      } catch (err: any) {
+        console.warn('⚠️ [FirestoreService] Firestore list error, using fallback:', err?.message);
+      }
+    }
+    return this.memoryStore.getAllProjects();
   }
 
   public async saveMediaAsset(asset: MediaAsset): Promise<MediaAsset> {
