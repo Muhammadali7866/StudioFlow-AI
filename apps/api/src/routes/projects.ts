@@ -48,6 +48,16 @@ router.post('/projects', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
+// GET /api/projects - List all projects
+router.get('/projects', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const projects = await firestoreService.listProjects();
+    res.json(projects);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/projects/:id - Get Project by ID
 router.get('/projects/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
