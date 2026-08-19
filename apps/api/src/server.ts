@@ -7,6 +7,7 @@ import { storageService } from './services/storage';
 import { projectRoutes } from './routes/projects';
 import { agentRoutes } from './routes/agent';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { requestLogger } from './middleware/request-logger';
 
 const app = express();
 
@@ -14,6 +15,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(requestLogger);
 
 // Serve local upload fallbacks if necessary
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
