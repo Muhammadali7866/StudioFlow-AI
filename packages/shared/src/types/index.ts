@@ -3,6 +3,15 @@ export type MediaAssetStatus = 'uploading' | 'uploaded' | 'processing' | 'proces
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 export type AgentExecutionStatus = 'idle' | 'running' | 'success' | 'failed';
 
+export interface AgentResponse {
+  agentName: string;
+  status: 'ok' | 'error';
+  message: string;
+  geminiRawResponse?: string;
+  isFallback?: boolean;
+  timestamp?: string;
+}
+
 export interface User {
   id: string;
   email: string;
