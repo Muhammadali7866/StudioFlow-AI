@@ -1,12 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { env } from '@studioflow/config';
-
-export interface AgentResponse {
-  agentName: string;
-  status: 'ok' | 'error';
-  message: string;
-  geminiRawResponse?: string;
-}
+import { AgentResponse } from '@studioflow/shared';
 
 export class RootAgent {
   private name = 'RootAgent';
@@ -24,12 +18,14 @@ export class RootAgent {
 
   public async processMessage(userMessage: string): Promise<AgentResponse> {
     const defaultPrefix = 'StudioFlow AI agent is running.';
+    const timestamp = new Date().toISOString();
 
     if (!userMessage || userMessage.trim().length === 0) {
       return {
         agentName: this.name,
         status: 'ok',
         message: defaultPrefix,
+        timestamp,
       };
     }
 
@@ -47,6 +43,8 @@ export class RootAgent {
           status: 'ok',
           message: reply,
           geminiRawResponse: reply,
+          isFallback: false,
+          timestamp,
         };
       } catch (error: any) {
         console.error('❌ [RootAgent Gemini Error]:', error?.message || error);
@@ -54,6 +52,8 @@ export class RootAgent {
           agentName: this.name,
           status: 'ok',
           message: `${defaultPrefix} (Gemini fallback response for prompt: "${userMessage}")`,
+          isFallback: true,
+          timestamp,
         };
       }
     }
@@ -62,8 +62,11 @@ export class RootAgent {
       agentName: this.name,
       status: 'ok',
       message: `${defaultPrefix} Prompt received: "${userMessage}"`,
+      isFallback: true,
+      timestamp,
     };
   }
 }
 
 export const rootAgent = new RootAgent();
+
