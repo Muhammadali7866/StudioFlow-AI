@@ -7,6 +7,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
+    "lint": "eslint src test --ext .ts,.mjs",
+    "test": "npm run build --workspace=@studioflow/shared && npm run build --workspace=@studioflow/config && npm run build && NODE_ENV=test node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
