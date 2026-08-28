@@ -1,11 +1,7 @@
-import type { Readable } from 'node:stream';
 import type { MediaMetadata } from '../director/types';
+import type { GeminiMediaSource } from '../media/types';
 
-export type TranscriptMediaSource =
-  | { kind: 'uri'; uri: string }
-  | { kind: 'path'; path: string }
-  | { kind: 'blob'; blob: Blob }
-  | { kind: 'stream'; stream: Readable };
+export type TranscriptMediaSource = GeminiMediaSource;
 
 export interface TranscriptRequest {
   projectId: string;
