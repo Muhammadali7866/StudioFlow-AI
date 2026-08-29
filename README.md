@@ -143,5 +143,6 @@ Access services:
 - [x] Project creation and video asset upload endpoints
 - [x] Gemini connectivity test endpoint (`POST /api/agent/test`)
 - [x] Next.js App Router UI with status badge & video upload flow (`apps/web`)
+- [x] First Vertical Architecture Slice end-to-end integration (Create → Upload → Gemini → Display)
 - [x] Unified error handling and response formatting
 - [x] Cloud Run compatible Dockerfiles & Docker Compose setup

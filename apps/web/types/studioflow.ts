@@ -1,3 +1,5 @@
+import type { AgentResponse, MediaAsset } from '@studioflow/shared';
+
 export type ProjectStatus = 'processing' | 'needs_review' | 'completed' | 'failed';
 
 export type AgentRole = 'director' | 'transcript' | 'scene' | 'compliance' | 'publishing';
@@ -26,6 +28,8 @@ export interface StudioProject {
   issue?: string;
   approvedAt?: string;
   artworkTone: 'violet' | 'cyan' | 'amber' | 'rose';
+  agentResponse?: AgentResponse;
+  mediaAsset?: MediaAsset;
 }
 
 export interface AgentRun {

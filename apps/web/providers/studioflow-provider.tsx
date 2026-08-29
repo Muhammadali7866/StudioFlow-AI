@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useMemo, useState } from 'react';
+import { useApiClient } from '@/hooks/use-api-client';
 import {
   DEMO_AGENTS,
   DEMO_CHAPTERS,
@@ -12,6 +13,7 @@ import {
   DEMO_SCENES,
   DEMO_TRANSCRIPT,
 } from '@/data/demo-data';
+import type { AgentResponse, MediaAsset } from '@studioflow/shared';
 import type {
   CreateProjectInput,
   ProjectWorkspace,
@@ -23,7 +25,7 @@ interface StudioFlowContextValue {
   projects: StudioProject[];
   findProject: (projectId: string) => StudioProject | undefined;
   getWorkspace: (projectId: string) => ProjectWorkspace | undefined;
-  createProject: (input: CreateProjectInput) => string;
+  createProject: (input: CreateProjectInput, videoFile?: File) => Promise<string>;
   retryProject: (projectId: string) => void;
   prepareProjectForReview: (projectId: string) => void;
   resolveComplianceCheck: (projectId: string, checkId: string) => void;
@@ -106,6 +108,7 @@ export function StudioFlowProvider({ children }: { children: React.ReactNode }) 
   const [projects, setProjects] = useState<StudioProject[]>(DEMO_PROJECTS);
   const [workspaces, setWorkspaces] =
     useState<Record<string, ProjectWorkspace>>(createInitialWorkspaces);
+  const apiClient = useApiClient();
 
   const findProject = useCallback(
     (projectId: string) => projects.find((project) => project.id === projectId),
@@ -114,32 +117,55 @@ export function StudioFlowProvider({ children }: { children: React.ReactNode }) 
 
   const getWorkspace = useCallback((projectId: string) => workspaces[projectId], [workspaces]);
 
-  const createProject = useCallback((input: CreateProjectInput) => {
-    const id = `project-${Date.now()}`;
-    const project: StudioProject = {
-      id,
-      code: createProjectCode(),
-      name: input.name,
-      goal: input.goal,
-      status: 'processing',
-      progress: 12,
-      activeStage: 'Director preparing the execution plan',
-      sourceFileName: input.sourceFileName,
-      sourceFileSize: input.sourceFileSize,
-      duration: 'Analyzing',
-      targetPlatform: 'YouTube',
-      createdAt: new Date().toISOString(),
-      recoveredIncidents: 0,
-      artworkTone: 'violet',
-    };
+  const createProject = useCallback(
+    async (input: CreateProjectInput, videoFile?: File): Promise<string> => {
+      let backendProjectId: string | undefined;
+      let agentResponseData: AgentResponse | undefined;
+      let mediaAssetData: MediaAsset | undefined;
 
-    setProjects((current) => [project, ...current]);
-    setWorkspaces((current) => ({
-      ...current,
-      [project.id]: createWorkspace(project, true),
-    }));
-    return id;
-  }, []);
+      try {
+        const apiProject = await apiClient.createProject(input.name, input.goal);
+        backendProjectId = apiProject.id;
+
+        if (videoFile && backendProjectId) {
+          mediaAssetData = await apiClient.uploadMedia(backendProjectId, videoFile);
+        }
+
+        const promptMsg = `New project created: "${input.name}". Goal: "${input.goal}".` + (mediaAssetData ? ` Video file uploaded: ${mediaAssetData.fileName}.` : '');
+        agentResponseData = await apiClient.callAgent(promptMsg);
+      } catch (err: any) {
+        console.warn('⚠️ [StudioFlow API Warning] API execution fallback active:', err?.message || err);
+      }
+
+      const id = backendProjectId || `project-${Date.now()}`;
+      const project: StudioProject = {
+        id,
+        code: createProjectCode(),
+        name: input.name,
+        goal: input.goal,
+        status: 'processing',
+        progress: 12,
+        activeStage: 'Director preparing the execution plan',
+        sourceFileName: input.sourceFileName,
+        sourceFileSize: input.sourceFileSize,
+        duration: 'Analyzing',
+        targetPlatform: 'YouTube',
+        createdAt: new Date().toISOString(),
+        recoveredIncidents: 0,
+        artworkTone: 'violet',
+        agentResponse: agentResponseData,
+        mediaAsset: mediaAssetData,
+      };
+
+      setProjects((current) => [project, ...current]);
+      setWorkspaces((current) => ({
+        ...current,
+        [project.id]: createWorkspace(project, true),
+      }));
+      return id;
+    },
+    [apiClient]
+  );
 
   const retryProject = useCallback((projectId: string) => {
     setProjects((current) =>

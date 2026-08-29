@@ -56,20 +56,34 @@ export default function NewProjectPage() {
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const [submitStatus, setSubmitStatus] = useState<string | null>(null);
+
   const canSubmit = Boolean(name.trim() && goal.trim() && upload.file && upload.phase === 'ready');
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || !upload.file) return;
+    if (!canSubmit || !upload.file || submitting) return;
 
     setSubmitting(true);
-    const projectId = createProject({
-      name: name.trim(),
-      goal: goal.trim(),
-      sourceFileName: upload.file.name,
-      sourceFileSize: formatBytes(upload.file.size),
-    });
-    router.push(`/projects/${projectId}/workflow`);
+    setSubmitStatus('Saving project & uploading video asset...');
+
+    try {
+      const projectId = await createProject(
+        {
+          name: name.trim(),
+          goal: goal.trim(),
+          sourceFileName: upload.file.name,
+          sourceFileSize: formatBytes(upload.file.size),
+        },
+        upload.file
+      );
+
+      router.push(`/projects/${projectId}/workflow`);
+    } catch (err: any) {
+      console.error('❌ Failed to process project workflow creation:', err);
+      setSubmitStatus(null);
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -283,7 +297,7 @@ export default function NewProjectPage() {
           </div>
 
           <Button type="submit" size="lg" disabled={!canSubmit || submitting} className="w-full">
-            {submitting ? 'Opening workflow…' : 'Create project & start workflow'}
+            {submitting ? (submitStatus || 'Opening workflow…') : 'Create project & start workflow'}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

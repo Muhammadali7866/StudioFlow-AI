@@ -110,6 +110,36 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
             </Panel>
           )}
 
+          {project.agentResponse && (
+            <Panel className="border-brand/35 bg-surface/80 p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand/15 text-brand-soft">
+                    <Bot className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      {project.agentResponse.agentName} — Initial Gemini Analysis
+                    </h3>
+                    <p className="text-[11px] text-muted">
+                      Executed at {project.agentResponse.timestamp ? new Date(project.agentResponse.timestamp).toLocaleTimeString() : 'Just now'}
+                    </p>
+                  </div>
+                </div>
+                {project.agentResponse.isFallback ? (
+                  <Badge tone="neutral">Demo Mode (Fallback)</Badge>
+                ) : (
+                  <Badge tone="success" dot>
+                    Live · Gemini 2.5 Flash
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-3.5 rounded-xl border border-line/60 bg-canvas/60 p-3.5 text-xs leading-6 text-slate-200">
+                {project.agentResponse.message}
+              </div>
+            </Panel>
+          )}
+
           <RecoveryCard
             investigation={workspace.investigation}
             onOpen={() => setInvestigationOpen(true)}
