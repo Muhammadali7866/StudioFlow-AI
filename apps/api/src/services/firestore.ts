@@ -1,10 +1,15 @@
 import { Firestore } from '@google-cloud/firestore';
 import { env } from '@studioflow/config';
-import { Project, MediaAsset } from '@studioflow/shared';
+import { Project, MediaAsset, Workflow } from '@studioflow/shared';
+
+function cloneWorkflow(workflow: Workflow): Workflow {
+  return structuredClone(workflow);
+}
 
 class MemoryFirestoreStore {
   private projects: Map<string, Project> = new Map();
   private mediaAssets: Map<string, MediaAsset> = new Map();
+  private workflows: Map<string, Workflow> = new Map();
 
   async setProject(project: Project): Promise<Project> {
     this.projects.set(project.id, { ...project });
@@ -29,6 +34,28 @@ class MemoryFirestoreStore {
     }
     return asset;
   }
+
+  async setWorkflow(workflow: Workflow): Promise<Workflow> {
+    const stored = cloneWorkflow(workflow);
+    this.workflows.set(workflow.id, stored);
+    return cloneWorkflow(stored);
+  }
+
+  async getWorkflow(id: string): Promise<Workflow | null> {
+    const workflow = this.workflows.get(id);
+    return workflow ? cloneWorkflow(workflow) : null;
+  }
+
+  async updateWorkflow(
+    id: string,
+    update: (workflow: Workflow) => Workflow
+  ): Promise<Workflow | null> {
+    const current = this.workflows.get(id);
+    if (!current) return null;
+    const updated = update(cloneWorkflow(current));
+    this.workflows.set(id, cloneWorkflow(updated));
+    return cloneWorkflow(updated);
+  }
 }
 
 export class FirestoreService {
@@ -51,11 +78,16 @@ export class FirestoreService {
         this.isConnected = true;
         console.log('✅ [FirestoreService] Connected to Google Cloud Firestore.');
       } catch (err: any) {
-        console.warn('⚠️ [FirestoreService] Could not initialize Cloud Firestore, using in-memory store:', err?.message);
+        console.warn(
+          '⚠️ [FirestoreService] Could not initialize Cloud Firestore, using in-memory store:',
+          err?.message
+        );
         this.isConnected = false;
       }
     } else {
-      console.log('ℹ️ [FirestoreService] No GCP credentials provided. Operating in local memory fallback mode.');
+      console.log(
+        'ℹ️ [FirestoreService] No GCP credentials provided. Operating in local memory fallback mode.'
+      );
       this.isConnected = false;
     }
   }
@@ -127,10 +159,79 @@ export class FirestoreService {
         }
         return asset;
       } catch (err: any) {
-        console.warn('⚠️ [FirestoreService] Firestore media asset save error, using fallback:', err?.message);
+        console.warn(
+          '⚠️ [FirestoreService] Firestore media asset save error, using fallback:',
+          err?.message
+        );
       }
     }
     return this.memoryStore.addMediaAsset(asset);
+  }
+
+  public async saveWorkflow(workflow: Workflow): Promise<Workflow> {
+    await this.memoryStore.setWorkflow(workflow);
+    if (this.db) {
+      try {
+        await this.db.collection('workflows').doc(workflow.id).set(workflow);
+      } catch (err: any) {
+        console.warn(
+          '⚠️ [FirestoreService] Firestore workflow save error, using fallback:',
+          err?.message
+        );
+      }
+    }
+    return cloneWorkflow(workflow);
+  }
+
+  public async getWorkflowById(id: string): Promise<Workflow | null> {
+    if (this.db) {
+      try {
+        const doc = await this.db.collection('workflows').doc(id).get();
+        if (doc.exists) {
+          const workflow = doc.data() as Workflow;
+          await this.memoryStore.setWorkflow(workflow);
+          return cloneWorkflow(workflow);
+        }
+      } catch (err: any) {
+        console.warn(
+          '⚠️ [FirestoreService] Firestore workflow fetch error, using fallback:',
+          err?.message
+        );
+      }
+    }
+    return this.memoryStore.getWorkflow(id);
+  }
+
+  public async updateWorkflow(
+    id: string,
+    update: (workflow: Workflow) => Workflow
+  ): Promise<Workflow | null> {
+    if (this.db) {
+      try {
+        const docRef = this.db.collection('workflows').doc(id);
+        const updated = await this.db.runTransaction(async (transaction) => {
+          const snapshot = await transaction.get(docRef);
+          if (!snapshot.exists) return null;
+          const nextWorkflow = update(snapshot.data() as Workflow);
+          transaction.set(docRef, nextWorkflow);
+          return nextWorkflow;
+        });
+        if (updated) {
+          await this.memoryStore.setWorkflow(updated);
+          return cloneWorkflow(updated);
+        }
+        return null;
+      } catch (err: any) {
+        if (err instanceof Error && 'code' in err && 'statusCode' in err) {
+          throw err;
+        }
+        console.warn(
+          '⚠️ [FirestoreService] Firestore workflow update error, using fallback:',
+          err?.message
+        );
+      }
+    }
+    return this.memoryStore.updateWorkflow(id, update);
   }
 }
 

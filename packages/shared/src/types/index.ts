@@ -2,6 +2,39 @@ export type ProjectStatus = 'draft' | 'processing' | 'completed' | 'failed';
 export type MediaAssetStatus = 'uploading' | 'uploaded' | 'processing' | 'processed' | 'error';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 export type AgentExecutionStatus = 'idle' | 'running' | 'success' | 'failed';
+export type WorkflowState =
+  | 'CREATED'
+  | 'PROCESSING'
+  | 'TRANSCRIBING'
+  | 'ANALYZING_ASSETS'
+  | 'CHECKING_COMPLIANCE'
+  | 'GENERATING_PUBLISHING_PACKAGE'
+  | 'REVIEW'
+  | 'COMPLETED'
+  | 'FAILED';
+
+export interface WorkflowStateHistoryEntry {
+  from: WorkflowState | null;
+  to: WorkflowState;
+  changedAt: string;
+  reason?: string;
+}
+
+export interface TaskError {
+  code: string;
+  message: string;
+  retryable: boolean;
+  statusCode?: number;
+}
+
+export interface TaskAttempt {
+  attempt: number;
+  status: Exclude<TaskStatus, 'pending'>;
+  startedAt: string;
+  completedAt?: string;
+  output?: Record<string, unknown>;
+  error?: TaskError;
+}
 
 export interface AgentResponse {
   agentName: string;
@@ -46,10 +79,12 @@ export interface Project {
 export interface Workflow {
   id: string;
   projectId: string;
-  name: string;
   tasks: Task[];
-  status: 'active' | 'completed' | 'failed';
+  status: WorkflowState;
+  stateHistory: WorkflowStateHistoryEntry[];
   createdAt: string;
+  updatedAt: string;
+  name?: string;
 }
 
 export interface Task {
@@ -58,7 +93,9 @@ export interface Task {
   agentName: string;
   action: string;
   status: TaskStatus;
+  attempts: TaskAttempt[];
   output?: Record<string, unknown>;
+  error?: TaskError;
   createdAt: string;
   updatedAt: string;
 }
