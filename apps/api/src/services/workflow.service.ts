@@ -25,7 +25,8 @@ export type WorkflowServiceErrorCode =
   | 'INVALID_WORKFLOW_TRANSITION'
   | 'WORKFLOW_VALIDATION_ERROR'
   | 'TASK_NOT_FOUND'
-  | 'TASK_STATE_CONFLICT';
+  | 'TASK_STATE_CONFLICT'
+  | 'WORKFLOW_RETRY_NOT_ALLOWED';
 
 export class WorkflowServiceError extends Error {
   constructor(
@@ -61,6 +62,11 @@ export interface WorkflowServiceOptions {
   repository?: WorkflowRepository;
   now?: () => Date;
   idFactory?: (prefix: 'workflow' | 'task') => string;
+}
+
+export interface QueuedWorkflowRetry {
+  workflow: Workflow;
+  taskId: string;
 }
 
 function assertNonEmpty(value: string, field: string): string {
@@ -242,6 +248,90 @@ export class WorkflowService {
     return this.finishTask(workflowId, taskId, 'failed', undefined, error);
   }
 
+  public async queueWorkflowRetry(
+    workflowId: string,
+    requestedTaskId?: string
+  ): Promise<QueuedWorkflowRetry> {
+    if (requestedTaskId !== undefined && !requestedTaskId.trim()) {
+      throw new WorkflowServiceError(
+        'taskId must be a non-empty string when provided.',
+        'WORKFLOW_VALIDATION_ERROR',
+        400
+      );
+    }
+    const current = await this.getWorkflow(workflowId);
+    if (!current) {
+      throw new WorkflowServiceError(
+        `Workflow ${workflowId} was not found.`,
+        'WORKFLOW_NOT_FOUND',
+        404
+      );
+    }
+    if (current.status !== 'FAILED') {
+      throw new WorkflowServiceError(
+        `Workflow ${workflowId} cannot be retried while it is ${current.status}.`,
+        'WORKFLOW_RETRY_NOT_ALLOWED',
+        409
+      );
+    }
+
+    const taskId = requestedTaskId?.trim() ?? this.findLatestFailedTaskId(current);
+    if (!taskId) {
+      throw new WorkflowServiceError(
+        `Workflow ${workflowId} has no failed task to retry.`,
+        'WORKFLOW_RETRY_NOT_ALLOWED',
+        409
+      );
+    }
+
+    const queuedAt = this.now().toISOString();
+    const workflow = await this.updateExistingWorkflow(workflowId, (latest) => {
+      if (latest.status !== 'FAILED') {
+        throw new WorkflowServiceError(
+          `Workflow ${workflowId} cannot be retried while it is ${latest.status}.`,
+          'WORKFLOW_RETRY_NOT_ALLOWED',
+          409
+        );
+      }
+
+      const task = getTask(latest, taskId);
+      if (task.status !== 'failed') {
+        throw new WorkflowServiceError(
+          `Task ${taskId} cannot be retried while it is ${task.status}.`,
+          'WORKFLOW_RETRY_NOT_ALLOWED',
+          409
+        );
+      }
+
+      const resumeState = this.getResumeState(latest);
+      const queuedTask: Task = {
+        ...task,
+        status: 'pending',
+        updatedAt: queuedAt,
+      };
+      delete queuedTask.error;
+      delete queuedTask.output;
+
+      return {
+        ...latest,
+        status: resumeState,
+        tasks: latest.tasks.map((candidate) => (candidate.id === taskId ? queuedTask : candidate)),
+        stateHistory: [
+          ...latest.stateHistory,
+          {
+            from: 'FAILED',
+            to: resumeState,
+            changedAt: queuedAt,
+            reason: `Manual retry queued for task ${taskId}`,
+          },
+        ],
+        updatedAt: queuedAt,
+      };
+    });
+
+    return { workflow, taskId };
+  }
+
   private async finishTask(
     workflowId: string,
     taskId: string,
@@ -297,6 +387,21 @@ export class WorkflowService {
       tasks: workflow.tasks.map((candidate) => (candidate.id === taskId ? task : candidate)),
       updatedAt: task.updatedAt,
     };
+  }
+
+  private findLatestFailedTaskId(workflow: Workflow): string | undefined {
+    return [...workflow.tasks].reverse().find((task) => task.status === 'failed')?.id;
+  }
+
+  private getResumeState(workflow: Workflow): WorkflowState {
+    const failedTransition = [...workflow.stateHistory]
+      .reverse()
+      .find((entry) => entry.to === 'FAILED');
+    const previousState = failedTransition?.from;
+    if (previousState && previousState !== 'FAILED' && previousState !== 'COMPLETED') {
+      return previousState;
+    }
+    return 'PROCESSING';
   }
 
   private async updateExistingWorkflow(

@@ -10,8 +10,17 @@ export function createWorkflowRoutes(service: WorkflowService = workflowService)
   const router = Router();
 
   router.get('/workflows/:workflowId', createGetWorkflowHandler(service));
+  router.post('/workflows/:workflowId/retry', createRetryWorkflowHandler(service));
 
   return router;
+}
+
+function forwardWorkflowError(error: unknown, next: NextFunction): void {
+  if (error instanceof WorkflowServiceError) {
+    next(new AppError(error.message, error.statusCode, error.code));
+    return;
+  }
+  next(error);
 }
 
 export function createGetWorkflowHandler(service: WorkflowService = workflowService) {
@@ -27,11 +36,33 @@ export function createGetWorkflowHandler(service: WorkflowService = workflowServ
       }
       res.json(workflow);
     } catch (error) {
-      if (error instanceof WorkflowServiceError) {
-        next(new AppError(error.message, error.statusCode, error.code));
-        return;
+      forwardWorkflowError(error, next);
+    }
+  };
+}
+
+export function createRetryWorkflowHandler(service: WorkflowService = workflowService) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const taskId = req.body?.taskId;
+      if (taskId !== undefined && (typeof taskId !== 'string' || !taskId.trim())) {
+        throw new WorkflowServiceError(
+          'taskId must be a non-empty string when provided.',
+          'WORKFLOW_VALIDATION_ERROR',
+          400
+        );
       }
-      next(error);
+
+      const queued = await service.queueWorkflowRetry(req.params.workflowId, taskId);
+      res.status(202).json({
+        workflow: queued.workflow,
+        retry: {
+          taskId: queued.taskId,
+          status: 'queued',
+        },
+      });
+    } catch (error) {
+      forwardWorkflowError(error, next);
     }
   };
 }

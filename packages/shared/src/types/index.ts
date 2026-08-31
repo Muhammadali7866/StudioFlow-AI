@@ -24,6 +24,7 @@ export interface TaskError {
   code: string;
   message: string;
   retryable: boolean;
+  statusCode?: number;
 }
 
 export interface TaskAttempt {
