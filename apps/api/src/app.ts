@@ -7,6 +7,7 @@ import { agentRoutes } from './routes/agent';
 import { projectRoutes } from './routes/projects';
 import { workflowRoutes } from './routes/workflows';
 import { firestoreService } from './services/firestore';
+import { pubSubService } from './services/pubsub.service';
 import { storageService } from './services/storage';
 
 const app = express();
@@ -25,11 +26,13 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/api/status', async (_req: Request, res: Response) => {
   const isFirestoreOk = await firestoreService.checkHealth();
   const isStorageOk = await storageService.checkHealth();
+  const isPubSubOk = await pubSubService.checkHealth();
 
   res.json({
     api: true,
     firestore: isFirestoreOk,
     storage: isStorageOk,
+    pubsub: isPubSubOk,
     timestamp: new Date().toISOString(),
   });
 });
