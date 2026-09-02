@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.5.0",
+    "@google-cloud/pubsub": "^6.0.1",
     "@google-cloud/storage": "^7.10.0",
     "@studioflow/agents": "*",
     "@studioflow/config": "*",
