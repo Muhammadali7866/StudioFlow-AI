@@ -47,7 +47,7 @@ studioflow-ai/
 
 ## Prerequisites
 
-- **Node.js**: `v18.0.0` or higher
+- **Node.js**: `v18.19.0` or higher
 - **npm**: `v9.0.0` or higher (Workspace support enabled)
 - **Docker**: Optional, for container deployment
 
@@ -72,8 +72,21 @@ cp .env.example .env
 | `GOOGLE_CLOUD_STORAGE_BUCKET` | Target Cloud Storage Bucket Name | `studioflow-ai-media-dev` |
 | `GEMINI_API_KEY` | Google Gemini API Key | `your-gemini-api-key-here` |
 | `GEMINI_MODEL` | Target Gemini Model ID | `gemini-2.5-flash` |
+| `GRAFANA_CLOUD_OTLP_ENDPOINT` | Grafana Cloud OTLP base endpoint | Disabled |
+| `GRAFANA_CLOUD_INSTANCE_ID` | Grafana Cloud OTLP username | None |
+| `GRAFANA_CLOUD_API_KEY` | Grafana Cloud access policy token | None |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector/Alloy OTLP base endpoint | Disabled |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Explicit OTLP metrics endpoint | Disabled |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated OTLP request headers | None |
+| `GRAFANA_METRICS_EXPORT_INTERVAL_MS` | Metrics export interval | `15000` |
+| `GRAFANA_METRICS_EXPORT_TIMEOUT_MS` | Metrics export timeout | `5000` |
 
 *Note: If GCP credentials or Gemini API keys are omitted during initial local development, the backend automatically operates in fallback mode while keeping all APIs and endpoints fully operational.*
+
+Grafana metrics are optional. When an OTLP endpoint is configured, every agent attempt exports
+execution, failure, retry, duration, workflow-step duration, and Gemini latency metrics with
+`workflowId`, `agentType`, `attempt`, and `status` attributes. Without a configured or reachable
+endpoint, telemetry is silently skipped and workflow execution continues normally.
 
 ---
 
