@@ -67,7 +67,6 @@ test('subscribeWorkflowEvents delivers published events to subscriber handler', 
   // Wait brief tick for async delivery
   await setTimeout(50);
 
-
   assert.equal(received.length, 1);
   assert.equal(received[0].workflowId, 'wf_2');
 
@@ -113,9 +112,18 @@ test('POST /api/workflows handler publishes event and returns HTTP 202 Accepted'
 
 test('WorkflowWorker processes WorkflowStartedEvent and transitions workflow to PROCESSING', async () => {
   const { workflowService, pubSubService } = createHarness();
+  const telemetryEvents = [];
   const worker = new WorkflowWorker({
     pubSubService,
     workflowService,
+    telemetry: {
+      recordWorkflowStarted(workflowId) {
+        telemetryEvents.push({ type: 'started', workflowId });
+      },
+      recordWorkflowFinished(workflowId, status) {
+        telemetryEvents.push({ type: 'finished', workflowId, status });
+      },
+    },
   });
 
   const workflow = await workflowService.createWorkflow({
@@ -133,4 +141,53 @@ test('WorkflowWorker processes WorkflowStartedEvent and transitions workflow to 
   const updated = await workflowService.getWorkflow(workflow.id);
   assert.ok(updated);
   assert.ok(updated.status !== 'CREATED');
+  assert.deepEqual(telemetryEvents, [
+    { type: 'started', workflowId: workflow.id },
+    { type: 'finished', workflowId: workflow.id, status: 'completed' },
+  ]);
+});
+
+test('WorkflowWorker reports failed workflow outcomes to telemetry', async () => {
+  const { workflowService, pubSubService } = createHarness();
+  const telemetryEvents = [];
+  const worker = new WorkflowWorker({
+    pubSubService,
+    workflowService,
+    agentExecutionService: {
+      async executeTask(workflowId, taskId) {
+        await workflowService.startTask(workflowId, taskId);
+        await workflowService.failTask(workflowId, taskId, {
+          code: 'AGENT_TIMEOUT',
+          message: 'Timed out.',
+          retryable: true,
+        });
+        await workflowService.transitionWorkflow(workflowId, 'FAILED');
+        throw new Error('Agent retries exhausted');
+      },
+    },
+    telemetry: {
+      recordWorkflowStarted(workflowId) {
+        telemetryEvents.push({ type: 'started', workflowId });
+      },
+      recordWorkflowFinished(workflowId, status) {
+        telemetryEvents.push({ type: 'finished', workflowId, status });
+      },
+    },
+  });
+  const workflow = await workflowService.createWorkflow({
+    projectId: 'proj_failed',
+    tasks: [{ id: 'custom', agentName: 'custom', action: 'Fail task' }],
+  });
+
+  await worker.handleEvent({
+    eventType: 'WorkflowStarted',
+    workflowId: workflow.id,
+    projectId: workflow.projectId,
+    publishedAt: new Date().toISOString(),
+  });
+
+  assert.deepEqual(telemetryEvents, [
+    { type: 'started', workflowId: workflow.id },
+    { type: 'finished', workflowId: workflow.id, status: 'failed' },
+  ]);
 });

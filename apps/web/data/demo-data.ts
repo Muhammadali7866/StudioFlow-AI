@@ -428,12 +428,14 @@ export const DEMO_PUBLISHING_PACKAGE: PublishingPackage = {
 };
 
 export const DEMO_INVESTIGATION: RecoveryInvestigation = {
+  source: 'sample',
   incidentId: 'inc_429_01',
   traceId: 'tr_8a92f',
   failedAgent: 'Scene Specialist',
   errorCode: '429 RESOURCE_EXHAUSTED',
   startedAt: '10:45:10',
   recoveredIn: '11.2s',
+  totalDurationMs: 11200,
   diagnosis:
     'A short quota spike affected the Gemini inference request; storage and project state remained healthy.',
   decision:
@@ -480,5 +482,23 @@ export const DEMO_INVESTIGATION: RecoveryInvestigation = {
       widthPercent: 34,
       tone: 'success',
     },
+  ],
+  logEvidence: [
+    {
+      timestamp: '2026-08-16T10:45:10.102Z',
+      source: 'scene-agent',
+      message: 'RESOURCE_EXHAUSTED: upstream returned 429; no output commit recorded.',
+    },
+    {
+      timestamp: '2026-08-16T10:45:21.302Z',
+      source: 'scene-agent',
+      message: 'Attempt 2 completed successfully after bounded backoff.',
+    },
+  ],
+  metricEvidence: [
+    { label: 'Failed attempts', value: '1' },
+    { label: 'Total attempts', value: '2' },
+    { label: 'Latest attempt duration', value: '3810ms' },
+    { label: 'Recovery status', value: 'Recovered' },
   ],
 };

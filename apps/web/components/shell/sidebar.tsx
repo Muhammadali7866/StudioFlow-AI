@@ -97,11 +97,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 Agent engine
               </span>
               <span className="rounded border border-accent/25 bg-accent/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-cyan-200">
-                UI DEMO
+                HYBRID
               </span>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-muted">
-              Interactive frontend state. API orchestration connects in the next slice.
+              Backend workflow orchestration with a local demo fallback.
             </p>
           </div>
         </div>
