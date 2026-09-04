@@ -88,6 +88,22 @@ execution, failure, retry, duration, workflow-step duration, and Gemini latency 
 `workflowId`, `agentType`, `attempt`, and `status` attributes. Without a configured or reachable
 endpoint, telemetry is silently skipped and workflow execution continues normally.
 
+### Grafana dashboard
+
+1. Configure the Grafana Cloud or Collector variables above and start StudioFlow.
+2. In Grafana, open **Dashboards → New → Import**.
+3. Upload [`docs/grafana-dashboard.json`](docs/grafana-dashboard.json).
+4. Select the Prometheus data source receiving the OTLP metrics, then run a workflow.
+
+The dashboard refreshes every five seconds and provides workflow success rate, active workflows,
+retry count, agent error rate, agent-duration percentiles, Gemini latency, and workflow-step
+duration. Its workflow and agent variables support isolating one run during a demonstration.
+
+Grafana Cloud converts OpenTelemetry dots to underscores and adds Prometheus unit/type suffixes.
+For example, `studioflow.agent.duration` with unit `ms` is queried as
+`studioflow_agent_duration_milliseconds_bucket`. The workflow UI retrieves correlated persisted
+failure and recovery evidence from `GET /api/workflows/:workflowId/investigation`.
+
 ---
 
 ## Quick Start & Local Execution

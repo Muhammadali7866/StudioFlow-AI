@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Bot, CheckCircle2, Circle, Pause, Play, RotateCcw } from 'lucide-react';
+import { ArrowRight, Bot, CheckCircle2, Circle, Gauge, Pause, Play, RotateCcw } from 'lucide-react';
 import { ProjectNotFound } from '@/components/projects/project-not-found';
 import { ActivityFeed } from '@/components/workflow/activity-feed';
 import { AgentCard } from '@/components/workflow/agent-card';
@@ -88,7 +88,9 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
                     </p>
                   </div>
                 </div>
-                <span className="font-mono text-[10px] text-brand-soft">RUN wf_8a92</span>
+                <span className="font-mono text-[10px] text-brand-soft">
+                  RUN {project.workflowId || 'wf_8a92'}
+                </span>
               </div>
 
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -122,7 +124,10 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
                       {project.agentResponse.agentName} — Initial Gemini Analysis
                     </h3>
                     <p className="text-[11px] text-muted">
-                      Executed at {project.agentResponse.timestamp ? new Date(project.agentResponse.timestamp).toLocaleTimeString() : 'Just now'}
+                      Executed at{' '}
+                      {project.agentResponse.timestamp
+                        ? new Date(project.agentResponse.timestamp).toLocaleTimeString()
+                        : 'Just now'}
                     </p>
                   </div>
                 </div>
@@ -140,10 +145,38 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
             </Panel>
           )}
 
-          <RecoveryCard
-            investigation={workspace.investigation}
-            onOpen={() => setInvestigationOpen(true)}
-          />
+          {project.workflowId ? (
+            <Panel className="border-accent/30 bg-accent/[0.055] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-cyan-200">
+                    <Gauge className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-bold text-white">Live Grafana telemetry</h2>
+                      <Badge tone="success" dot>
+                        Backend connected
+                      </Badge>
+                    </div>
+                    <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">
+                      Inspect persisted failure evidence and the matching Grafana metric queries for
+                      this workflow.
+                    </p>
+                  </div>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => setInvestigationOpen(true)}>
+                  View investigation
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </Panel>
+          ) : (
+            <RecoveryCard
+              investigation={workspace.investigation}
+              onOpen={() => setInvestigationOpen(true)}
+            />
+          )}
 
           <section aria-labelledby="specialists-heading">
             <div className="mb-3 flex items-center justify-between">
@@ -172,6 +205,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
         open={investigationOpen}
         onClose={() => setInvestigationOpen(false)}
         investigation={workspace.investigation}
+        workflowId={project.workflowId}
       />
     </main>
   );

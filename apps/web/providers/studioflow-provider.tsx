@@ -122,6 +122,7 @@ export function StudioFlowProvider({ children }: { children: React.ReactNode }) 
       let backendProjectId: string | undefined;
       let agentResponseData: AgentResponse | undefined;
       let mediaAssetData: MediaAsset | undefined;
+      let workflowId: string | undefined;
 
       try {
         const apiProject = await apiClient.createProject(input.name, input.goal);
@@ -131,10 +132,17 @@ export function StudioFlowProvider({ children }: { children: React.ReactNode }) 
           mediaAssetData = await apiClient.uploadMedia(backendProjectId, videoFile);
         }
 
-        const promptMsg = `New project created: "${input.name}". Goal: "${input.goal}".` + (mediaAssetData ? ` Video file uploaded: ${mediaAssetData.fileName}.` : '');
+        const workflow = await apiClient.startWorkflow(backendProjectId, mediaAssetData?.id);
+        workflowId = workflow.workflowId;
+        const promptMsg =
+          `New project created: "${input.name}". Goal: "${input.goal}".` +
+          (mediaAssetData ? ` Video file uploaded: ${mediaAssetData.fileName}.` : '');
         agentResponseData = await apiClient.callAgent(promptMsg);
       } catch (err: any) {
-        console.warn('⚠️ [StudioFlow API Warning] API execution fallback active:', err?.message || err);
+        console.warn(
+          '⚠️ [StudioFlow API Warning] API execution fallback active:',
+          err?.message || err
+        );
       }
 
       const id = backendProjectId || `project-${Date.now()}`;
@@ -153,6 +161,7 @@ export function StudioFlowProvider({ children }: { children: React.ReactNode }) 
         createdAt: new Date().toISOString(),
         recoveredIncidents: 0,
         artworkTone: 'violet',
+        workflowId,
         agentResponse: agentResponseData,
         mediaAsset: mediaAssetData,
       };

@@ -1,11 +1,11 @@
-import {
-  AssetAgent,
-  ComplianceAgent,
-  PublisherAgent,
-  TranscriptAgent,
-} from '@studioflow/agents';
-import { WorkflowState } from '@studioflow/shared';
+import { AssetAgent, ComplianceAgent, PublisherAgent, TranscriptAgent } from '@studioflow/agents';
+import { Workflow, WorkflowState } from '@studioflow/shared';
 import { agentExecutionService, AgentExecutionService } from './services/agent-execution.service';
+import {
+  grafanaService,
+  WorkflowMetricStatus,
+  WorkflowTelemetryRecorder,
+} from './services/grafana';
 import { WorkflowEvent } from './services/pubsub-events';
 import { pubSubService, PubSubService } from './services/pubsub.service';
 import { WorkflowService, workflowService } from './services/workflow.service';
@@ -14,12 +14,14 @@ export interface WorkflowWorkerOptions {
   pubSubService?: PubSubService;
   workflowService?: WorkflowService;
   agentExecutionService?: AgentExecutionService;
+  telemetry?: WorkflowTelemetryRecorder;
 }
 
 export class WorkflowWorker {
   private readonly pubSub: PubSubService;
   private readonly workflows: WorkflowService;
   private readonly execution: AgentExecutionService;
+  private readonly telemetry: WorkflowTelemetryRecorder;
   private unsubscribe?: () => Promise<void>;
 
   private readonly transcriptAgent: TranscriptAgent;
@@ -31,6 +33,7 @@ export class WorkflowWorker {
     this.pubSub = options.pubSubService || pubSubService;
     this.workflows = options.workflowService || workflowService;
     this.execution = options.agentExecutionService || agentExecutionService;
+    this.telemetry = options.telemetry || grafanaService;
 
     this.transcriptAgent = new TranscriptAgent();
     this.assetAgent = new AssetAgent();
@@ -64,10 +67,33 @@ export class WorkflowWorker {
     mediaId?: string
   ): Promise<void> {
     const workflow = await this.workflows.getWorkflow(workflowId);
-    if (!workflow || workflow.status === 'COMPLETED' || workflow.status === 'FAILED') {
+    if (
+      !workflow ||
+      workflow.status === 'REVIEW' ||
+      workflow.status === 'COMPLETED' ||
+      workflow.status === 'FAILED'
+    ) {
       return;
     }
 
+    this.recordWorkflowStarted(workflowId);
+    let outcome: WorkflowMetricStatus = 'failed';
+
+    try {
+      await this.executeWorkflow(workflowId, projectId, mediaId, workflow);
+      const processed = await this.workflows.getWorkflow(workflowId);
+      outcome = processed?.status === 'FAILED' ? 'failed' : 'completed';
+    } finally {
+      this.recordWorkflowFinished(workflowId, outcome);
+    }
+  }
+
+  private async executeWorkflow(
+    workflowId: string,
+    projectId: string,
+    mediaId: string | undefined,
+    workflow: Workflow
+  ): Promise<void> {
     if (workflow.status === 'CREATED') {
       await this.workflows.transitionWorkflow(workflowId, 'PROCESSING');
     }
@@ -93,17 +119,13 @@ export class WorkflowWorker {
       try {
         if (agentName === 'transcript') {
           await this.transitionStateIfAllowed(workflowId, 'TRANSCRIBING');
-          transcriptResult = await this.execution.executeTask(
-            workflowId,
-            task.id,
-            async () => {
-              const res = await this.transcriptAgent.analyze({
-                projectId,
-                media: defaultMedia,
-              });
-              return res as unknown as Record<string, unknown>;
-            }
-          );
+          transcriptResult = await this.execution.executeTask(workflowId, task.id, async () => {
+            const res = await this.transcriptAgent.analyze({
+              projectId,
+              media: defaultMedia,
+            });
+            return res as unknown as Record<string, unknown>;
+          });
         } else if (agentName === 'asset') {
           await this.transitionStateIfAllowed(workflowId, 'ANALYZING_ASSETS');
           assetResult = await this.execution.executeTask(workflowId, task.id, async () => {
@@ -115,19 +137,15 @@ export class WorkflowWorker {
           });
         } else if (agentName === 'compliance') {
           await this.transitionStateIfAllowed(workflowId, 'CHECKING_COMPLIANCE');
-          complianceResult = await this.execution.executeTask(
-            workflowId,
-            task.id,
-            async () => {
-              const res = await this.complianceAgent.analyze({
-                projectId,
-                media: defaultMedia,
-                transcriptResult: transcriptResult as any,
-                assetResult: assetResult as any,
-              });
-              return res as unknown as Record<string, unknown>;
-            }
-          );
+          complianceResult = await this.execution.executeTask(workflowId, task.id, async () => {
+            const res = await this.complianceAgent.analyze({
+              projectId,
+              media: defaultMedia,
+              transcriptResult: transcriptResult as any,
+              assetResult: assetResult as any,
+            });
+            return res as unknown as Record<string, unknown>;
+          });
         } else if (agentName === 'publisher') {
           await this.transitionStateIfAllowed(workflowId, 'GENERATING_PUBLISHING_PACKAGE');
           await this.execution.executeTask(workflowId, task.id, async () => {
@@ -154,6 +172,22 @@ export class WorkflowWorker {
 
     // Final workflow state transitions
     await this.transitionStateIfAllowed(workflowId, 'REVIEW');
+  }
+
+  private recordWorkflowStarted(workflowId: string): void {
+    try {
+      this.telemetry.recordWorkflowStarted(workflowId);
+    } catch {
+      // Observability failures must never affect workflow execution.
+    }
+  }
+
+  private recordWorkflowFinished(workflowId: string, status: WorkflowMetricStatus): void {
+    try {
+      this.telemetry.recordWorkflowFinished(workflowId, status);
+    } catch {
+      // Observability failures must never affect workflow execution.
+    }
   }
 
   private async transitionStateIfAllowed(

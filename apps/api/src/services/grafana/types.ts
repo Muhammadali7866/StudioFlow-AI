@@ -1,4 +1,5 @@
 export type AgentMetricStatus = 'completed' | 'failed';
+export type WorkflowMetricStatus = 'completed' | 'failed';
 
 export interface AgentTelemetryEvent {
   workflowId: string;
@@ -15,7 +16,12 @@ export interface AgentTelemetryRecorder {
   recordAgentAttempt(event: AgentTelemetryEvent): void;
 }
 
-export interface AgentTelemetryClient extends AgentTelemetryRecorder {
+export interface WorkflowTelemetryRecorder {
+  recordWorkflowStarted(workflowId: string): void;
+  recordWorkflowFinished(workflowId: string, status: WorkflowMetricStatus): void;
+}
+
+export interface AgentTelemetryClient extends AgentTelemetryRecorder, WorkflowTelemetryRecorder {
   forceFlush(): Promise<boolean>;
   shutdown(): Promise<void>;
   isEnabled(): boolean;

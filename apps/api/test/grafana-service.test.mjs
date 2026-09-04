@@ -85,6 +85,8 @@ test('records real OpenTelemetry data points for agent execution, failure, and r
     retryScheduled: true,
     errorCode: 'AGENT_TIMEOUT',
   });
+  service.recordWorkflowStarted('workflow_1');
+  service.recordWorkflowFinished('workflow_1', 'completed');
 
   assert.equal(await service.forceFlush(), true);
 
@@ -99,6 +101,8 @@ test('records real OpenTelemetry data points for agent execution, failure, and r
     'studioflow.agent.failures',
     'studioflow.agent.retries',
     'studioflow.gemini.latency',
+    'studioflow.workflow.active',
+    'studioflow.workflow.executions',
     'studioflow.workflow.step.duration',
   ]);
 
@@ -113,6 +117,19 @@ test('records real OpenTelemetry data points for agent execution, failure, and r
     errorCode: 'AGENT_TIMEOUT',
   });
   assert.equal(durationMetric.dataPoints[0].value.sum, 125);
+
+  const latestMetrics = exporter
+    .getMetrics()
+    .at(-1)
+    .scopeMetrics.flatMap((scopeMetrics) => scopeMetrics.metrics);
+  const workflowExecutions = latestMetrics.find(
+    (metric) => metric.descriptor.name === 'studioflow.workflow.executions'
+  );
+  assert.equal(workflowExecutions.dataPoints[0].value, 1);
+  assert.deepEqual(workflowExecutions.dataPoints[0].attributes, {
+    workflowId: 'workflow_1',
+    status: 'completed',
+  });
 
   await provider.shutdown();
 });
@@ -141,6 +158,9 @@ test('swallows exporter flush and shutdown failures', async () => {
       return instrument;
     },
     createHistogram() {
+      return instrument;
+    },
+    createUpDownCounter() {
       return instrument;
     },
   };

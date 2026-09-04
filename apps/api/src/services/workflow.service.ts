@@ -26,7 +26,8 @@ export type WorkflowServiceErrorCode =
   | 'WORKFLOW_VALIDATION_ERROR'
   | 'TASK_NOT_FOUND'
   | 'TASK_STATE_CONFLICT'
-  | 'WORKFLOW_RETRY_NOT_ALLOWED';
+  | 'WORKFLOW_RETRY_NOT_ALLOWED'
+  | 'WORKFLOW_INVESTIGATION_NOT_FOUND';
 
 export class WorkflowServiceError extends Error {
   constructor(

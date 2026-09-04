@@ -1,9 +1,9 @@
-import { Attributes, Counter, Histogram, Meter } from '@opentelemetry/api';
+import { Attributes, Counter, Histogram, Meter, UpDownCounter } from '@opentelemetry/api';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { env } from '@studioflow/config';
-import { AgentTelemetryClient, AgentTelemetryEvent } from './types';
+import { AgentTelemetryClient, AgentTelemetryEvent, WorkflowMetricStatus } from './types';
 
 const SERVICE_NAME = 'studioflow-api';
 const SERVICE_VERSION = '0.1.0';
@@ -99,6 +99,8 @@ export class GrafanaService implements AgentTelemetryClient {
   private readonly agentDuration?: Histogram;
   private readonly workflowStepDuration?: Histogram;
   private readonly geminiLatency?: Histogram;
+  private readonly activeWorkflows?: UpDownCounter;
+  private readonly workflowExecutions?: Counter;
 
   constructor(options: GrafanaServiceOptions = {}) {
     const config = options.config || grafanaConfigFromEnvironment();
@@ -165,6 +167,14 @@ export class GrafanaService implements AgentTelemetryClient {
       description: 'Latency of the agent model operation',
       unit: 'ms',
     });
+    this.activeWorkflows = meter.createUpDownCounter('studioflow.workflow.active', {
+      description: 'Number of workflows currently being processed',
+      unit: '{workflow}',
+    });
+    this.workflowExecutions = meter.createCounter('studioflow.workflow.executions', {
+      description: 'Number of completed workflow processing runs',
+      unit: '{workflow}',
+    });
   }
 
   public recordAgentAttempt(event: AgentTelemetryEvent): void {
@@ -188,6 +198,23 @@ export class GrafanaService implements AgentTelemetryClient {
 
       if (event.status === 'failed') this.failures?.add(1, attributes);
       if (event.retryScheduled) this.retries?.add(1, attributes);
+    } catch {
+      // Telemetry must never interrupt workflow execution.
+    }
+  }
+
+  public recordWorkflowStarted(workflowId: string): void {
+    try {
+      this.activeWorkflows?.add(1, { workflowId });
+    } catch {
+      // Telemetry must never interrupt workflow execution.
+    }
+  }
+
+  public recordWorkflowFinished(workflowId: string, status: WorkflowMetricStatus): void {
+    try {
+      this.activeWorkflows?.add(-1, { workflowId });
+      this.workflowExecutions?.add(1, { workflowId, status });
     } catch {
       // Telemetry must never interrupt workflow execution.
     }
