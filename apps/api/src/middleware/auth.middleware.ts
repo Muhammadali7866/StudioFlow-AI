@@ -13,14 +13,12 @@ import { getFirebaseAdmin } from '../services/firebase-admin';
 import { AppError } from './error.middleware';
 
 // Extend the Express Request type to include the authenticated user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        uid: string;
-        email?: string;
-      };
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: {
+      uid: string;
+      email?: string;
+    };
   }
 }
 

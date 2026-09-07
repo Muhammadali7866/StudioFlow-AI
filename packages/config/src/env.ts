@@ -1,9 +1,11 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Attempt to load .env from workspace root if running locally
-dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+// Tests must remain isolated from developer credentials and live cloud resources.
+if (process.env.NODE_ENV !== 'test') {
+  dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+}
 
 export interface AppConfig {
   port: number;

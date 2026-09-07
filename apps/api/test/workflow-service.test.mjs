@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createGetWorkflowHandler } from '../dist/routes/workflows.js';
-import { WorkflowService, WorkflowServiceError } from '../dist/services/workflow.service.js';
+import {
+  WORKFLOW_TRANSITIONS,
+  WorkflowService,
+  WorkflowServiceError,
+} from '../dist/services/workflow.service.js';
 
 function createHarness() {
   const records = new Map();
@@ -41,6 +45,20 @@ const TASKS = [
   { id: 'transcript', agentName: 'transcript', action: 'Transcribe media' },
   { id: 'assets', agentName: 'asset', action: 'Analyze visual assets' },
 ];
+
+test('declares every allowed workflow state transition', () => {
+  assert.deepEqual(WORKFLOW_TRANSITIONS, {
+    CREATED: ['PROCESSING', 'FAILED'],
+    PROCESSING: ['TRANSCRIBING', 'FAILED'],
+    TRANSCRIBING: ['ANALYZING_ASSETS', 'CHECKING_COMPLIANCE', 'FAILED'],
+    ANALYZING_ASSETS: ['CHECKING_COMPLIANCE', 'FAILED'],
+    CHECKING_COMPLIANCE: ['GENERATING_PUBLISHING_PACKAGE', 'FAILED'],
+    GENERATING_PUBLISHING_PACKAGE: ['REVIEW', 'FAILED'],
+    REVIEW: ['COMPLETED', 'FAILED'],
+    COMPLETED: [],
+    FAILED: [],
+  });
+});
 
 test('creates a persisted workflow with task and initial state history', async () => {
   const { records, service } = createHarness();

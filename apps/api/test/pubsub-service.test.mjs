@@ -110,12 +110,34 @@ test('POST /api/workflows handler publishes event and returns HTTP 202 Accepted'
   assert.equal(events[0].workflowId, jsonResult.workflowId);
 });
 
-test('WorkflowWorker processes WorkflowStartedEvent and transitions workflow to PROCESSING', async () => {
+test('WorkflowWorker processes every task with its injected repository and agents', async () => {
   const { workflowService, pubSubService } = createHarness();
   const telemetryEvents = [];
   const worker = new WorkflowWorker({
     pubSubService,
     workflowService,
+    agents: {
+      transcript: {
+        async analyze() {
+          return { transcript: [] };
+        },
+      },
+      asset: {
+        async analyze() {
+          return { scenes: [] };
+        },
+      },
+      compliance: {
+        async analyze() {
+          return { checks: [] };
+        },
+      },
+      publisher: {
+        async analyze() {
+          return { platforms: [] };
+        },
+      },
+    },
     telemetry: {
       recordWorkflowStarted(workflowId) {
         telemetryEvents.push({ type: 'started', workflowId });
@@ -128,7 +150,12 @@ test('WorkflowWorker processes WorkflowStartedEvent and transitions workflow to 
 
   const workflow = await workflowService.createWorkflow({
     projectId: 'proj_4',
-    tasks: [{ agentName: 'transcript', action: 'Transcribe audio' }],
+    tasks: [
+      { agentName: 'transcript', action: 'Transcribe audio' },
+      { agentName: 'asset', action: 'Analyze scenes' },
+      { agentName: 'compliance', action: 'Check compliance' },
+      { agentName: 'publisher', action: 'Build publishing package' },
+    ],
   });
 
   await worker.handleEvent({
@@ -140,7 +167,11 @@ test('WorkflowWorker processes WorkflowStartedEvent and transitions workflow to 
 
   const updated = await workflowService.getWorkflow(workflow.id);
   assert.ok(updated);
-  assert.ok(updated.status !== 'CREATED');
+  assert.equal(updated.status, 'REVIEW');
+  assert.deepEqual(
+    updated.tasks.map((task) => task.status),
+    ['completed', 'completed', 'completed', 'completed']
+  );
   assert.deepEqual(telemetryEvents, [
     { type: 'started', workflowId: workflow.id },
     { type: 'finished', workflowId: workflow.id, status: 'completed' },

@@ -142,8 +142,22 @@ npm run dev:web
 | --- | --- |
 | `npm run dev` | Runs Express API and Next.js Frontend in watch mode |
 | `npm run build` | Builds all packages (`packages/*`) and application bundles (`apps/*`) |
+| `npm test` | Runs the complete unit, integration, and fault-injection test suite |
 | `npm run lint` | Runs ESLint checks across all TypeScript files |
 | `npm run typecheck` | Validates TypeScript types across all workspace packages |
+
+### Automated testing
+
+Run the same test entrypoint used by CI from the repository root:
+
+```bash
+npm test
+```
+
+The suite validates workflow state transitions and agent response schemas, exercises Express
+routes over HTTP, and injects Gemini timeout, retry exhaustion, corrupt media, and storage outage
+failures. All cloud integrations are replaced with deterministic fakes during tests, so the suite
+does not require credentials or live Google Cloud resources.
 
 ---
 

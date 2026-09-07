@@ -68,7 +68,7 @@ test('classifies transient provider failures separately from invalid input', () 
   });
 });
 
-test('recovers transient failures within bounded exponential backoff', async () => {
+test('recovers Gemini timeouts within bounded exponential backoff', async () => {
   const { workflowService } = createHarness();
   const workflow = await createProcessingWorkflow(workflowService);
   const delays = [];
@@ -96,7 +96,9 @@ test('recovers transient failures within bounded exponential backoff', async () 
 
   const output = await executionService.executeTask(workflow.id, 'transcript', async () => {
     calls += 1;
-    if (calls < 3) throw { status: 503, message: 'Gemini unavailable' };
+    if (calls < 3) {
+      throw { code: 'ETIMEDOUT', name: 'TimeoutError', message: 'Gemini request timed out.' };
+    }
     return { segments: 14 };
   });
 
@@ -115,13 +117,13 @@ test('recovers transient failures within bounded exponential backoff', async () 
         attempt: 1,
         status: 'failed',
         retryScheduled: true,
-        errorCode: 'AGENT_SERVICE_UNAVAILABLE',
+        errorCode: 'AGENT_TIMEOUT',
       },
       {
         attempt: 2,
         status: 'failed',
         retryScheduled: true,
-        errorCode: 'AGENT_SERVICE_UNAVAILABLE',
+        errorCode: 'AGENT_TIMEOUT',
       },
       {
         attempt: 3,
