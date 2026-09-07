@@ -14,19 +14,30 @@ export class AppError extends Error {
 
 export function errorHandler(
   err: Error | AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
   const statusCode = err instanceof AppError ? err.statusCode : 500;
   const errorCode = err instanceof AppError ? err.errorCode : 'INTERNAL_SERVER_ERROR';
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  console.error(`❌ [API Error] ${errorCode} (${statusCode}):`, err.message);
+  // Always log full error detail server-side for debugging / Grafana ingestion
+  console.error(
+    `❌ [API Error] ${req.method} ${req.originalUrl} | ${errorCode} (${statusCode}):`,
+    err.message
+  );
+
+  // In production, hide internal details for 5xx errors to prevent info leakage (M6-01)
+  const clientMessage =
+    isProduction && statusCode >= 500
+      ? 'An unexpected error occurred. Please try again later.'
+      : err.message || 'An unexpected internal server error occurred.';
 
   res.status(statusCode).json({
     error: {
       code: errorCode,
-      message: err.message || 'An unexpected internal server error occurred.',
+      message: clientMessage,
     },
   });
 }

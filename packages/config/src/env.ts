@@ -23,6 +23,10 @@ export interface AppConfig {
   grafanaCloudApiKey?: string;
   grafanaMetricsExportIntervalMs: number;
   grafanaMetricsExportTimeoutMs: number;
+  // Security / Auth (M6-01)
+  authEnabled: boolean;
+  allowedOrigins: string[];
+  firebaseProjectId: string;
 }
 
 function positiveInteger(value: string | undefined, fallback: number): number {
@@ -56,6 +60,20 @@ export function validateAndGetConfig(): AppConfig {
       process.env.GRAFANA_METRICS_EXPORT_TIMEOUT_MS,
       5_000
     ),
+    // Security / Auth (M6-01)
+    // AUTH_ENABLED defaults to true in production, false in dev/test for DX convenience
+    authEnabled: process.env.AUTH_ENABLED
+      ? process.env.AUTH_ENABLED === 'true'
+      : process.env.NODE_ENV === 'production',
+    allowedOrigins: process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',')
+          .map((o) => o.trim())
+          .filter(Boolean)
+      : ['http://localhost:3000', 'http://localhost:4000'],
+    firebaseProjectId:
+      process.env.FIREBASE_PROJECT_ID ||
+      process.env.GOOGLE_CLOUD_PROJECT_ID ||
+      'studioflow-ai-dev',
   };
 
   const warnings: string[] = [];
