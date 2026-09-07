@@ -1,0 +1,41 @@
+# Dependencies (re-installed inside the builder stage)
+node_modules
+**/node_modules
+
+# Build outputs (produced fresh inside the builder stage)
+dist
+build
+.next
+out
+
+# Git history (not needed in image)
+.git
+.gitignore
+
+# Environment secrets (never bake into images)
+.env
+.env.*
+*.pem
+keys/
+
+# Local dev uploads & temp files
+uploads/
+temp/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE & OS
+.DS_Store
+.vscode/
+.idea/
+
+# Docs & markdown
+*.md
+docs/
+
+# Test files
+**/test/
+**/*.test.*
+**/*.spec.*

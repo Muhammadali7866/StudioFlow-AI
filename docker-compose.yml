@@ -6,26 +6,39 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     ports:
-      - "4000:4000"
+      - "8080:8080"
     environment:
-      - PORT=4000
+      - PORT=8080
       - NODE_ENV=development
       - GOOGLE_CLOUD_PROJECT_ID=studioflow-ai-dev
       - GOOGLE_CLOUD_REGION=us-central1
       - FIRESTORE_DATABASE_ID=(default)
       - GOOGLE_CLOUD_STORAGE_BUCKET=studioflow-ai-media-dev
+      # M6-01: Auth disabled locally — set AUTH_ENABLED=true to test with real tokens
+      - AUTH_ENABLED=false
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+      - FIREBASE_PROJECT_ID=studioflow-ai-dev
     volumes:
-      - ./uploads:/app/apps/api/uploads
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8080
     ports:
-      - "3000:3000"
+      - "3000:8080"
     environment:
-      - PORT=3000
+      - PORT=8080
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
     depends_on:
-      - api
+      api:
+        condition: service_healthy
