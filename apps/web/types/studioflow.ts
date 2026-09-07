@@ -1,4 +1,10 @@
-import type { AgentResponse, MediaAsset } from '@studioflow/shared';
+import type {
+  AgentResponse,
+  InvestigationStep as SharedInvestigationStep,
+  InvestigationTraceSpan,
+  MediaAsset,
+  WorkflowInvestigation,
+} from '@studioflow/shared';
 
 export type ProjectStatus = 'processing' | 'needs_review' | 'completed' | 'failed';
 
@@ -28,6 +34,7 @@ export interface StudioProject {
   issue?: string;
   approvedAt?: string;
   artworkTone: 'violet' | 'cyan' | 'amber' | 'rose';
+  workflowId?: string;
   agentResponse?: AgentResponse;
   mediaAsset?: MediaAsset;
 }
@@ -115,36 +122,9 @@ export interface PublishingPackage {
   readiness: ReadinessItem[];
 }
 
-export interface InvestigationStep {
-  label: string;
-  detail: string;
-  tone: Tone;
-}
-
-export interface TraceSpan {
-  name: string;
-  service: string;
-  durationMs: number;
-  offsetPercent: number;
-  widthPercent: number;
-  tone: Tone;
-}
-
-export interface RecoveryInvestigation {
-  incidentId: string;
-  traceId: string;
-  failedAgent: string;
-  errorCode: string;
-  startedAt: string;
-  recoveredIn: string;
-  diagnosis: string;
-  decision: string;
-  action: string;
-  query: string;
-  metricQuery: string;
-  steps: InvestigationStep[];
-  trace: TraceSpan[];
-}
+export type InvestigationStep = SharedInvestigationStep;
+export type TraceSpan = InvestigationTraceSpan;
+export type RecoveryInvestigation = WorkflowInvestigation;
 
 export interface CreateProjectInput {
   name: string;

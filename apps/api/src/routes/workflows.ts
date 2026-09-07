@@ -6,18 +6,58 @@ import {
   WorkflowServiceError,
   workflowService,
 } from '../services/workflow.service';
+import {
+  WorkflowInvestigationService,
+  workflowInvestigationService,
+} from '../services/workflow-investigation.service';
 
 export function createWorkflowRoutes(
   service: WorkflowService = workflowService,
-  pubSub: PubSubService = pubSubService
+  pubSub: PubSubService = pubSubService,
+  investigations: WorkflowInvestigationService = workflowInvestigationService
 ): Router {
   const router = Router();
 
   router.post('/workflows', createStartWorkflowHandler(service, pubSub));
   router.get('/workflows/:workflowId', createGetWorkflowHandler(service));
+  router.get(
+    '/workflows/:workflowId/investigation',
+    createGetWorkflowInvestigationHandler(service, investigations)
+  );
   router.post('/workflows/:workflowId/retry', createRetryWorkflowHandler(service));
 
   return router;
+}
+
+export function createGetWorkflowInvestigationHandler(
+  service: WorkflowService = workflowService,
+  investigations: WorkflowInvestigationService = workflowInvestigationService
+) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const workflow = await service.getWorkflow(req.params.workflowId);
+      if (!workflow) {
+        throw new WorkflowServiceError(
+          `Workflow ${req.params.workflowId} was not found.`,
+          'WORKFLOW_NOT_FOUND',
+          404
+        );
+      }
+
+      const investigation = await investigations.getInvestigation(req.params.workflowId);
+      if (!investigation) {
+        throw new WorkflowServiceError(
+          `Workflow ${req.params.workflowId} has no failed agent attempt to investigate.`,
+          'WORKFLOW_INVESTIGATION_NOT_FOUND',
+          404
+        );
+      }
+
+      res.json(investigation);
+    } catch (error) {
+      forwardWorkflowError(error, next);
+    }
+  };
 }
 
 function forwardWorkflowError(error: unknown, next: NextFunction): void {

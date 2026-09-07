@@ -16,6 +16,18 @@ export interface AppConfig {
   geminiApiKey?: string;
   geminiModel: string;
   nextPublicApiUrl: string;
+  otelExporterOtlpEndpoint?: string;
+  otelExporterOtlpMetricsEndpoint?: string;
+  otelExporterOtlpHeaders?: string;
+  grafanaCloudInstanceId?: string;
+  grafanaCloudApiKey?: string;
+  grafanaMetricsExportIntervalMs: number;
+  grafanaMetricsExportTimeoutMs: number;
+}
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function validateAndGetConfig(): AppConfig {
@@ -30,6 +42,20 @@ export function validateAndGetConfig(): AppConfig {
     geminiApiKey: process.env.GEMINI_API_KEY,
     geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     nextPublicApiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
+    otelExporterOtlpEndpoint:
+      process.env.GRAFANA_CLOUD_OTLP_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    otelExporterOtlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+    otelExporterOtlpHeaders: process.env.OTEL_EXPORTER_OTLP_HEADERS,
+    grafanaCloudInstanceId: process.env.GRAFANA_CLOUD_INSTANCE_ID,
+    grafanaCloudApiKey: process.env.GRAFANA_CLOUD_API_KEY,
+    grafanaMetricsExportIntervalMs: positiveInteger(
+      process.env.GRAFANA_METRICS_EXPORT_INTERVAL_MS,
+      15_000
+    ),
+    grafanaMetricsExportTimeoutMs: positiveInteger(
+      process.env.GRAFANA_METRICS_EXPORT_TIMEOUT_MS,
+      5_000
+    ),
   };
 
   const warnings: string[] = [];
@@ -43,7 +69,7 @@ export function validateAndGetConfig(): AppConfig {
   }
 
   if (warnings.length > 0 && config.nodeEnv !== 'test') {
-    console.warn('⚠️ [StudioFlow Config Warning]:\n' + warnings.map(w => ` - ${w}`).join('\n'));
+    console.warn('⚠️ [StudioFlow Config Warning]:\n' + warnings.map((w) => ` - ${w}`).join('\n'));
   }
 
   return config;

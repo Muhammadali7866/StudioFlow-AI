@@ -100,6 +100,55 @@ export interface Task {
   updatedAt: string;
 }
 
+export type InvestigationTone = 'neutral' | 'brand' | 'info' | 'success' | 'warning' | 'danger';
+
+export interface InvestigationStep {
+  label: string;
+  detail: string;
+  tone: InvestigationTone;
+}
+
+export interface InvestigationTraceSpan {
+  name: string;
+  service: string;
+  durationMs: number;
+  offsetPercent: number;
+  widthPercent: number;
+  tone: InvestigationTone;
+}
+
+export interface InvestigationLogEvidence {
+  timestamp: string;
+  source: string;
+  message: string;
+}
+
+export interface InvestigationMetricEvidence {
+  label: string;
+  value: string;
+}
+
+export interface WorkflowInvestigation {
+  source: 'backend' | 'sample';
+  incidentId: string;
+  traceId: string;
+  workflowId?: string;
+  failedAgent: string;
+  errorCode: string;
+  startedAt: string;
+  recoveredIn: string;
+  totalDurationMs: number;
+  diagnosis: string;
+  decision: string;
+  action: string;
+  query: string;
+  metricQuery: string;
+  steps: InvestigationStep[];
+  trace: InvestigationTraceSpan[];
+  logEvidence: InvestigationLogEvidence[];
+  metricEvidence: InvestigationMetricEvidence[];
+}
+
 export interface AgentExecution {
   id: string;
   agentName: string;

@@ -1,5 +1,6 @@
 import { TaskError } from '@studioflow/shared';
 import { classifyAgentError } from './agent-error';
+import { AgentTelemetryRecorder, grafanaService } from './grafana';
 import { WorkflowService, workflowService } from './workflow.service';
 
 export interface RetryPolicy {
@@ -23,6 +24,8 @@ export interface AgentExecutionServiceOptions {
   workflowService?: WorkflowService;
   retryPolicy?: Partial<RetryPolicy>;
   sleep?: (milliseconds: number) => Promise<void>;
+  telemetry?: AgentTelemetryRecorder;
+  clock?: () => number;
 }
 
 export class AgentExecutionError extends Error {
@@ -49,6 +52,8 @@ export class AgentExecutionService {
   private readonly workflows: WorkflowService;
   private readonly retryPolicy: RetryPolicy;
   private readonly sleep: (milliseconds: number) => Promise<void>;
+  private readonly telemetry: AgentTelemetryRecorder;
+  private readonly clock: () => number;
 
   constructor(options: AgentExecutionServiceOptions = {}) {
     this.workflows = options.workflowService || workflowService;
@@ -56,6 +61,8 @@ export class AgentExecutionService {
     this.sleep =
       options.sleep ||
       ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    this.telemetry = options.telemetry || grafanaService;
+    this.clock = options.clock || Date.now;
     this.validatePolicy();
   }
 
@@ -67,9 +74,12 @@ export class AgentExecutionService {
     const maximumAttempts = this.retryPolicy.maxRetries + 1;
 
     for (let runAttempt = 1; runAttempt <= maximumAttempts; runAttempt += 1) {
+      const attemptStartedAt = this.clock();
       const started = await this.workflows.startTask(workflowId, taskId);
       const persistedTask = started.tasks.find((task) => task.id === taskId);
       const persistedAttempt = persistedTask?.attempts.at(-1)?.attempt ?? runAttempt;
+      const agentType = persistedTask?.agentName || 'unknown';
+      const operationStartedAt = this.clock();
 
       let output: T;
       try {
@@ -79,10 +89,21 @@ export class AgentExecutionService {
           attempt: persistedAttempt,
         });
       } catch (error) {
+        const operationFinishedAt = this.clock();
         const classified = classifyAgentError(error);
         await this.workflows.failTask(workflowId, taskId, classified);
 
         const retryExhausted = runAttempt === maximumAttempts;
+        this.recordAttempt({
+          workflowId,
+          agentType,
+          durationMs: this.clock() - attemptStartedAt,
+          attempt: persistedAttempt,
+          status: 'failed',
+          geminiLatency: operationFinishedAt - operationStartedAt,
+          retryScheduled: classified.retryable && !retryExhausted,
+          errorCode: classified.code,
+        });
         if (!classified.retryable || retryExhausted) {
           await this.failWorkflow(workflowId, taskId, classified, runAttempt);
           const code = classified.retryable ? 'AGENT_RETRY_EXHAUSTED' : classified.code;
@@ -102,7 +123,16 @@ export class AgentExecutionService {
         continue;
       }
 
+      const operationFinishedAt = this.clock();
       await this.workflows.completeTask(workflowId, taskId, output);
+      this.recordAttempt({
+        workflowId,
+        agentType,
+        durationMs: this.clock() - attemptStartedAt,
+        attempt: persistedAttempt,
+        status: 'completed',
+        geminiLatency: operationFinishedAt - operationStartedAt,
+      });
       return output;
     }
 
@@ -114,6 +144,14 @@ export class AgentExecutionService {
       this.retryPolicy.initialDelayMs *
       this.retryPolicy.backoffMultiplier ** Math.max(0, completedAttempt - 1);
     return Math.min(delay, this.retryPolicy.maxDelayMs);
+  }
+
+  private recordAttempt(event: Parameters<AgentTelemetryRecorder['recordAgentAttempt']>[0]): void {
+    try {
+      this.telemetry.recordAgentAttempt(event);
+    } catch {
+      // Observability failures must never affect the agent retry lifecycle.
+    }
   }
 
   private async failWorkflow(

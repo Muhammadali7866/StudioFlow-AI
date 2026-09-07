@@ -61,7 +61,7 @@ export function Topbar({ onOpenNavigation }: TopbarProps) {
 
       <div className="flex items-center gap-2">
         <Badge tone="info" dot className="hidden md:inline-flex">
-          Frontend demo
+          Live + demo
         </Badge>
         <Link href="/projects/new" className={buttonStyles({ size: 'sm' })}>
           <Plus className="h-3.5 w-3.5" />

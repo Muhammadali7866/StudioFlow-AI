@@ -56,13 +56,11 @@ export function RecoveryCard({ investigation, onOpen }: RecoveryCardProps) {
           </div>
           <div className="grid gap-1 sm:grid-cols-[5.5rem_1fr]">
             <dt className="text-slate-500">Decision</dt>
-            <dd className="text-cyan-200">
-              Retry after correlated telemetry confirmed an idempotent transient failure.
-            </dd>
+            <dd className="text-cyan-200">{investigation.decision}</dd>
           </div>
           <div className="grid gap-1 sm:grid-cols-[5.5rem_1fr]">
             <dt className="text-slate-500">Action</dt>
-            <dd className="text-emerald-200">Attempt 1 succeeded and the workflow resumed.</dd>
+            <dd className="text-emerald-200">{investigation.action}</dd>
           </div>
         </dl>
 

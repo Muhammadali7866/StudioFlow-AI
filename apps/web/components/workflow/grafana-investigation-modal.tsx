@@ -1,8 +1,18 @@
 'use client';
 
-import { Activity, CheckCircle2, Clock3, Gauge, SearchCode, TriangleAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Activity,
+  CheckCircle2,
+  Clock3,
+  Gauge,
+  LoaderCircle,
+  SearchCode,
+  TriangleAlert,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
+import { useApiClient } from '@/hooks/use-api-client';
 import { cn } from '@/lib/cn';
 import type { RecoveryInvestigation, Tone } from '@/types/studioflow';
 
@@ -19,30 +29,97 @@ interface GrafanaInvestigationModalProps {
   open: boolean;
   onClose: () => void;
   investigation: RecoveryInvestigation;
+  workflowId?: string;
 }
 
 export function GrafanaInvestigationModal({
   open,
   onClose,
   investigation,
+  workflowId,
 }: GrafanaInvestigationModalProps) {
+  const { getWorkflowInvestigation } = useApiClient();
+  const [liveInvestigation, setLiveInvestigation] = useState<RecoveryInvestigation>();
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
+
+  useEffect(() => {
+    if (!open || !workflowId) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(undefined);
+    getWorkflowInvestigation(workflowId)
+      .then((result) => {
+        if (!cancelled) setLiveInvestigation(result);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setLiveInvestigation(undefined);
+          setLoadError(error instanceof Error ? error.message : 'Failed to load investigation.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getWorkflowInvestigation, open, workflowId]);
+
+  const activeInvestigation = workflowId ? liveInvestigation : investigation;
+
+  if (!activeInvestigation) {
+    return (
+      <Modal
+        open={open}
+        onClose={onClose}
+        title="Grafana investigation"
+        description="Live workflow evidence from the StudioFlow observability backend."
+        className="max-w-2xl"
+      >
+        <div className="flex min-h-48 items-center justify-center p-6 text-center">
+          {loading ? (
+            <div className="space-y-3 text-sm text-muted">
+              <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-accent" />
+              <p>Loading correlated workflow telemetry…</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <TriangleAlert className="mx-auto h-6 w-6 text-amber-300" />
+              <p className="text-sm font-semibold text-slate-200">No investigation available</p>
+              <p className="max-w-md text-xs leading-5 text-muted">
+                {loadError || 'No failed agent attempt has been recorded for this workflow.'}
+              </p>
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Grafana MCP investigation"
+      title="Grafana investigation"
       description="Correlated log, metric, and trace evidence used by the Director to choose a safe recovery action."
       className="max-w-5xl"
     >
       <div className="space-y-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="info" dot>
-            Frontend sample
+            {activeInvestigation.source === 'backend' ? 'Live backend telemetry' : 'Demo sample'}
           </Badge>
-          <Badge tone="danger">{investigation.errorCode}</Badge>
-          <Badge tone="success">Recovered in {investigation.recoveredIn}</Badge>
+          <Badge tone="danger">{activeInvestigation.errorCode}</Badge>
+          <Badge tone={activeInvestigation.recoveredIn === 'Pending' ? 'warning' : 'success'}>
+            {activeInvestigation.recoveredIn === 'Pending'
+              ? 'Recovery pending'
+              : `Recovered in ${activeInvestigation.recoveredIn}`}
+          </Badge>
           <span className="ml-auto font-mono text-[10px] text-slate-500">
-            TRACE {investigation.traceId}
+            TRACE {activeInvestigation.traceId}
           </span>
         </div>
 
@@ -50,19 +127,19 @@ export function GrafanaInvestigationModal({
           {[
             {
               label: 'Diagnosis',
-              value: investigation.diagnosis,
+              value: activeInvestigation.diagnosis,
               icon: SearchCode,
               tone: 'text-cyan-200 bg-accent/10',
             },
             {
               label: 'Decision',
-              value: investigation.decision,
+              value: activeInvestigation.decision,
               icon: Gauge,
               tone: 'text-amber-200 bg-warning/10',
             },
             {
               label: 'Action',
-              value: investigation.action,
+              value: activeInvestigation.action,
               icon: CheckCircle2,
               tone: 'text-emerald-200 bg-success/10',
             },
@@ -88,10 +165,12 @@ export function GrafanaInvestigationModal({
               <Activity className="h-4 w-4 text-brand-soft" />
               <h3 className="text-xs font-bold text-white">Correlated trace</h3>
             </div>
-            <span className="font-mono text-[10px] text-slate-500">11,200ms total</span>
+            <span className="font-mono text-[10px] text-slate-500">
+              {activeInvestigation.totalDurationMs.toLocaleString()}ms total
+            </span>
           </div>
           <div className="mt-5 space-y-3">
-            {investigation.trace.map((span) => (
+            {activeInvestigation.trace.map((span) => (
               <div
                 key={span.name}
                 className="grid items-center gap-2 sm:grid-cols-[9rem_1fr_4.5rem]"
@@ -121,11 +200,15 @@ export function GrafanaInvestigationModal({
               Log evidence
             </div>
             <pre className="pretty-scrollbar mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-cyan-200">
-              {investigation.query}
+              {activeInvestigation.query}
             </pre>
-            <p className="mt-3 font-mono text-[10px] leading-5 text-slate-400">
-              10:45:10.102Z scene-agent error upstream returned 429; no output commit recorded
-            </p>
+            <div className="mt-3 space-y-2 font-mono text-[10px] leading-5 text-slate-400">
+              {activeInvestigation.logEvidence.map((entry) => (
+                <p key={`${entry.timestamp}-${entry.message}`}>
+                  {new Date(entry.timestamp).toLocaleTimeString()} {entry.source} {entry.message}
+                </p>
+              ))}
+            </div>
           </section>
           <section className="rounded-xl border border-line bg-black/20 p-4">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
@@ -133,17 +216,25 @@ export function GrafanaInvestigationModal({
               Metric evidence
             </div>
             <pre className="pretty-scrollbar mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-cyan-200">
-              {investigation.metricQuery}
+              {activeInvestigation.metricQuery}
             </pre>
-            <p className="mt-3 font-mono text-[10px] leading-5 text-slate-400">
-              short-lived error spike; queue depth returned to baseline within 4.8 seconds
-            </p>
+            <dl className="mt-3 grid grid-cols-2 gap-2">
+              {activeInvestigation.metricEvidence.map((entry) => (
+                <div key={entry.label} className="rounded-lg bg-raised/70 px-3 py-2">
+                  <dt className="text-[9px] uppercase tracking-wide text-slate-500">
+                    {entry.label}
+                  </dt>
+                  <dd className="mt-1 font-mono text-[11px] text-slate-300">{entry.value}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
         </div>
 
         <p className="rounded-xl border border-brand/20 bg-brand/[0.06] px-4 py-3 text-[11px] leading-5 text-brand-soft/75">
-          This slice renders the intended evidence contract. Real telemetry queries and the
-          Director&apos;s MCP tool call are connected in the backend slice.
+          {activeInvestigation.source === 'backend'
+            ? 'Evidence is derived from persisted backend attempts and correlated with the same labels used by the Grafana dashboard.'
+            : 'Demo evidence is shown because this sample project is not connected to a persisted backend workflow.'}
         </p>
       </div>
     </Modal>

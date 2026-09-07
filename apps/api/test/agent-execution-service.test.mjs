@@ -72,7 +72,9 @@ test('recovers transient failures within bounded exponential backoff', async () 
   const { workflowService } = createHarness();
   const workflow = await createProcessingWorkflow(workflowService);
   const delays = [];
+  const telemetryEvents = [];
   let calls = 0;
+  let clock = 0;
   const executionService = new AgentExecutionService({
     workflowService,
     retryPolicy: {
@@ -84,6 +86,12 @@ test('recovers transient failures within bounded exponential backoff', async () 
     sleep: async (milliseconds) => {
       delays.push(milliseconds);
     },
+    telemetry: {
+      recordAgentAttempt(event) {
+        telemetryEvents.push(event);
+      },
+    },
+    clock: () => (clock += 10),
   });
 
   const output = await executionService.executeTask(workflow.id, 'transcript', async () => {
@@ -95,6 +103,48 @@ test('recovers transient failures within bounded exponential backoff', async () 
   assert.deepEqual(output, { segments: 14 });
   assert.equal(calls, 3);
   assert.deepEqual(delays, [100, 200]);
+  assert.deepEqual(
+    telemetryEvents.map(({ attempt, status, retryScheduled, errorCode }) => ({
+      attempt,
+      status,
+      retryScheduled,
+      errorCode,
+    })),
+    [
+      {
+        attempt: 1,
+        status: 'failed',
+        retryScheduled: true,
+        errorCode: 'AGENT_SERVICE_UNAVAILABLE',
+      },
+      {
+        attempt: 2,
+        status: 'failed',
+        retryScheduled: true,
+        errorCode: 'AGENT_SERVICE_UNAVAILABLE',
+      },
+      {
+        attempt: 3,
+        status: 'completed',
+        retryScheduled: undefined,
+        errorCode: undefined,
+      },
+    ]
+  );
+  assert.deepEqual(
+    telemetryEvents.map(({ workflowId, agentType, durationMs, geminiLatency }) => ({
+      workflowId,
+      agentType,
+      durationMs,
+      geminiLatency,
+    })),
+    Array.from({ length: 3 }, () => ({
+      workflowId: workflow.id,
+      agentType: 'transcript',
+      durationMs: 30,
+      geminiLatency: 10,
+    }))
+  );
   const recovered = await workflowService.getWorkflow(workflow.id);
   assert.equal(recovered.status, 'PROCESSING');
   assert.equal(recovered.tasks[0].status, 'completed');
@@ -102,6 +152,27 @@ test('recovers transient failures within bounded exponential backoff', async () 
     recovered.tasks[0].attempts.map((attempt) => attempt.status),
     ['failed', 'failed', 'completed']
   );
+});
+
+test('keeps agent execution independent from telemetry failures', async () => {
+  const { workflowService } = createHarness();
+  const workflow = await createProcessingWorkflow(workflowService);
+  const executionService = new AgentExecutionService({
+    workflowService,
+    telemetry: {
+      recordAgentAttempt() {
+        throw new Error('Grafana is unavailable');
+      },
+    },
+  });
+
+  const output = await executionService.executeTask(workflow.id, 'transcript', async () => ({
+    segments: 1,
+  }));
+
+  assert.deepEqual(output, { segments: 1 });
+  const recovered = await workflowService.getWorkflow(workflow.id);
+  assert.equal(recovered.tasks[0].status, 'completed');
 });
 
 test('fails the workflow after the initial attempt and three retries', async () => {
