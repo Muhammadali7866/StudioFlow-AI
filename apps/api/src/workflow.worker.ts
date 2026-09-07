@@ -15,6 +15,14 @@ export interface WorkflowWorkerOptions {
   workflowService?: WorkflowService;
   agentExecutionService?: AgentExecutionService;
   telemetry?: WorkflowTelemetryRecorder;
+  agents?: Partial<WorkflowWorkerAgents>;
+}
+
+export interface WorkflowWorkerAgents {
+  transcript: Pick<TranscriptAgent, 'analyze'>;
+  asset: Pick<AssetAgent, 'analyze'>;
+  compliance: Pick<ComplianceAgent, 'analyze'>;
+  publisher: Pick<PublisherAgent, 'analyze'>;
 }
 
 export class WorkflowWorker {
@@ -24,21 +32,25 @@ export class WorkflowWorker {
   private readonly telemetry: WorkflowTelemetryRecorder;
   private unsubscribe?: () => Promise<void>;
 
-  private readonly transcriptAgent: TranscriptAgent;
-  private readonly assetAgent: AssetAgent;
-  private readonly complianceAgent: ComplianceAgent;
-  private readonly publisherAgent: PublisherAgent;
+  private readonly transcriptAgent: WorkflowWorkerAgents['transcript'];
+  private readonly assetAgent: WorkflowWorkerAgents['asset'];
+  private readonly complianceAgent: WorkflowWorkerAgents['compliance'];
+  private readonly publisherAgent: WorkflowWorkerAgents['publisher'];
 
   constructor(options: WorkflowWorkerOptions = {}) {
     this.pubSub = options.pubSubService || pubSubService;
     this.workflows = options.workflowService || workflowService;
-    this.execution = options.agentExecutionService || agentExecutionService;
+    this.execution =
+      options.agentExecutionService ||
+      (options.workflowService
+        ? new AgentExecutionService({ workflowService: this.workflows })
+        : agentExecutionService);
     this.telemetry = options.telemetry || grafanaService;
 
-    this.transcriptAgent = new TranscriptAgent();
-    this.assetAgent = new AssetAgent();
-    this.complianceAgent = new ComplianceAgent();
-    this.publisherAgent = new PublisherAgent();
+    this.transcriptAgent = options.agents?.transcript || new TranscriptAgent();
+    this.assetAgent = options.agents?.asset || new AssetAgent();
+    this.complianceAgent = options.agents?.compliance || new ComplianceAgent();
+    this.publisherAgent = options.agents?.publisher || new PublisherAgent();
   }
 
   public async start(): Promise<void> {

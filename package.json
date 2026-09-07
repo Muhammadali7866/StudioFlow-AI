@@ -14,6 +14,7 @@
     "dev:web": "npm run dev --workspace=apps/web",
     "build:packages": "npm run build --workspace=packages/shared && npm run build --workspace=packages/config && npm run build --workspace=packages/agents",
     "build": "npm run build:packages && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
+    "test": "npm run test --workspace=@studioflow/agents && npm run test --workspace=@studioflow/api",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
