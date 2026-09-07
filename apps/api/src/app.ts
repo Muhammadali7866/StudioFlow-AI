@@ -1,8 +1,10 @@
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import path from 'path';
+import { env } from '@studioflow/config';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/request-logger';
+import { authMiddleware } from './middleware/auth.middleware';
 import { agentRoutes } from './routes/agent';
 import { projectRoutes } from './routes/projects';
 import { workflowRoutes } from './routes/workflows';
@@ -12,13 +14,31 @@ import { storageService } from './services/storage';
 
 const app = express();
 
-app.use(cors());
+// ─── CORS (M6-01): restrict to known origins ─────────────────────────────────
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, Postman, server-to-server)
+      if (!origin) return callback(null, true);
+      if (env.allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`CORS: Origin '${origin}' is not allowed.`));
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
+// Static uploads served without auth (public media URLs)
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
+// ─── Public routes (no auth required) ────────────────────────────────────────
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
@@ -37,10 +57,13 @@ app.get('/api/status', async (_req: Request, res: Response) => {
   });
 });
 
+// ─── Protected routes (M6-01): require valid Firebase ID token ────────────────
+app.use('/api', authMiddleware);
 app.use('/api', projectRoutes);
 app.use('/api', workflowRoutes);
 app.use('/api/agent', agentRoutes);
 
+// ─── Error handlers ───────────────────────────────────────────────────────────
 app.use(notFoundHandler);
 app.use(errorHandler);
 

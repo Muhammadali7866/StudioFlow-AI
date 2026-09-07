@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import path from 'path';
 import multer from 'multer';
 import { AppError } from '../middleware/error.middleware';
 import { firestoreService } from '../services/firestore';
@@ -6,15 +7,43 @@ import { storageService } from '../services/storage';
 import { Project, MediaAsset } from '@studioflow/shared';
 
 const router = Router();
+
+// M6-01: Strict MIME-type + file extension allowlist (removed application/octet-stream bypass)
+const ALLOWED_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/x-m4a',
+  'audio/aac',
+]);
+const ALLOWED_EXTENSIONS = new Set([
+  '.mp4', '.mov', '.webm', '.avi', '.mkv',
+  '.mp3', '.wav', '.ogg', '.m4a', '.aac',
+]);
+
 const upload = multer({
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100 MB max video limit for demo
+    fileSize: 100 * 1024 * 1024, // 100 MB max video
+    fieldSize: 10 * 1024,        // 10 KB for text fields
+    fields: 10,                  // Max 10 non-file fields
   },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/') || file.mimetype === 'application/octet-stream') {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_MIME_TYPES.has(file.mimetype) && ALLOWED_EXTENSIONS.has(ext)) {
       cb(null, true);
     } else {
-      cb(new AppError('Invalid file format. Only video/audio files are supported.', 400, 'INVALID_FILE_TYPE'));
+      cb(
+        new AppError(
+          `Invalid file type. Allowed formats: ${[...ALLOWED_EXTENSIONS].join(', ')}`,
+          400,
+          'INVALID_FILE_TYPE'
+        )
+      );
     }
   },
 });
@@ -37,7 +66,7 @@ router.post('/projects', async (req: Request, res: Response, next: NextFunction)
       status: 'draft',
       createdAt: now,
       updatedAt: now,
-      ownerId: 'user_default',
+      ownerId: req.user?.uid ?? 'anonymous', // M6-01: use authenticated Firebase uid
       mediaAssets: [],
     };
 
